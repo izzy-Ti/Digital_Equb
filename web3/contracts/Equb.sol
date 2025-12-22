@@ -77,7 +77,18 @@ contract Equb {
         equb storage theEqub = equbs[_equbId];
         theEqub.members.push(msg.sender);
     }
-    function leaveEqub() public {}
+    function leaveEqub(uint256 _equbId) public {
+        equb storage theEqub = equbs[_equbId];
+        for (uint256 i; i < theEqub.members.length; i++) {
+            if (theEqub.members[i] == msg.sender) {
+                theEqub.members[i] = theEqub.members[
+                    theEqub.members.length - 1
+                ];
+                theEqub.members.pop();
+                break;
+            }
+        }
+    }
     function getMembers() public {}
 
     function contribute() public {}
