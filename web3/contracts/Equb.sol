@@ -13,11 +13,11 @@ contract Equb {
         uint256 currentRound;
         bool isActive;
         address[] members;
+        mapping(address => member) membersInfo;
         address[] winners;
         uint256 totalPool;
     }
     struct member {
-        address wallet;
         uint256 joinedAt;
         bool hasPaidCurrentRound;
         bool hasWon;
@@ -89,10 +89,29 @@ contract Equb {
             }
         }
     }
-    function getMembers() public {}
+    function getMembers(
+        uint256 _equbId
+    ) public view returns (address[] memory) {
+        return equbs[_equbId].members;
+    }
 
-    function contribute() public {}
-    function getContributionStatus() public {}
+    function contribute(uint256 _equbId) public payable {
+        equb storage theEqub = equbs[_equbId];
+
+        require(theEqub.membersInfo[msg.sender].joinedAt > 0, "Not a member");
+        require(
+            !theEqub.membersInfo[msg.sender].hasPaidCurrentRound,
+            "Already paid"
+        );
+        require(msg.value == theEqub.contributionAmount, "Incorrect amount");
+
+        theEqub.membersInfo[msg.sender].hasPaidCurrentRound = true;
+        theEqub.totalPool += msg.value;
+    }
+
+    function getContributionStatus(uint256 _equbId) public view returns () {
+        equb storage theEqub = equbs[_equbId];
+    }
     function getTotalPool() public {}
 
     function selectWinner() public {}
