@@ -21,16 +21,16 @@ contract Equb {
         uint256 joinedAt;
         bool hasPaidCurrentRound;
         bool hasWon;
-        uint256 currentEqubs;
     }
     uint256 public count = 0;
     mapping(uint256 => equb) public equbs;
+    mapping(address => uint256) public activeEqubCount;
+
     function createEqub(
         string memory _name,
         uint256 _contributionAmount,
         uint256 _cycleDuration,
-        uint256 _maxMember,
-        uint256 _startTime
+        uint256 _maxMember
     ) public {
         equb storage newEqub = equbs[count];
         newEqub.owner = msg.sender;
@@ -38,7 +38,7 @@ contract Equb {
         newEqub.contributionAmount = _contributionAmount;
         newEqub.cycleDuration = _cycleDuration;
         newEqub.maxMembers = _maxMember;
-        newEqub.startTime = _startTime;
+        newEqub.startTime = block.timestamp;
         newEqub.currentRound = 0;
         newEqub.isActive = false;
         newEqub.totalPool = 0;
@@ -51,7 +51,6 @@ contract Equb {
             "please you must be the owner to start it"
         );
         theEqub.isActive = true;
-        theEqub.startTime = block.timestamp;
     }
     function endEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
@@ -75,10 +74,23 @@ contract Equb {
     }
     function joinEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
+        require(theEqub.isActive, "Equb not active");
+        require(activeEqubCount[msg.sender] < 3, "maximum equb reached");
+        require(theEqub.maxMembers > theEqub.members.length, "equb full");
+        require(
+            theEqub.membersInfo[msg.sender].joinedAt == 0,
+            "user already existes"
+        );
         theEqub.members.push(msg.sender);
+        theEqub.membersInfo[msg.sender].joinedAt = block.timestamp;
+        theEqub.membersInfo[msg.sender].hasPaidCurrentRound = false;
+        theEqub.membersInfo[msg.sender].hasWon = false;
+        activeEqubCount[msg.sender] += 1;
     }
     function leaveEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
+        require(theEqub.membersInfo[msg.sender].joinedAt > 0, "Not a member");
+
         for (uint256 i; i < theEqub.members.length; i++) {
             if (theEqub.members[i] == msg.sender) {
                 theEqub.members[i] = theEqub.members[
@@ -88,6 +100,8 @@ contract Equb {
                 break;
             }
         }
+        delete theEqub.membersInfo[msg.sender];
+        activeEqubCount[msg.sender]--;
     }
     function getMembers(
         uint256 _equbId
@@ -99,6 +113,8 @@ contract Equb {
         equb storage theEqub = equbs[_equbId];
 
         require(theEqub.membersInfo[msg.sender].joinedAt > 0, "Not a member");
+        require(theEqub.isActive, "Equb not active");
+
         require(
             !theEqub.membersInfo[msg.sender].hasPaidCurrentRound,
             "Already paid"
@@ -108,16 +124,53 @@ contract Equb {
         theEqub.membersInfo[msg.sender].hasPaidCurrentRound = true;
         theEqub.totalPool += msg.value;
     }
-
-    function getContributionStatus(uint256 _equbId) public view returns () {
+    function getContributionStatus(
+        uint256 _equbId
+    ) public view returns (member memory) {
         equb storage theEqub = equbs[_equbId];
+
+        return theEqub.membersInfo[msg.sender];
     }
-    function getTotalPool() public {}
+    function getTotalPool(uint256 _equbId) public view returns (uint256) {
+        return equbs[_equbId].totalPool;
+    }
+    function selectWinner(uint256 _equbId, address _winnerAddress) public {
+        equb storage theEqub = equbs[_equbId];
 
-    function selectWinner() public {}
-    function getCurrentWinner() public {}
-    function getWinnersHistory() public {}
+        require(msg.sender == theEqub.owner, "Not owner");
+        require(
+            theEqub.membersInfo[_winnerAddress].joinedAt > 0,
+            "Not a member"
+        );
+        require(theEqub.totalPool > 0, "Empty pool");
+        require(theEqub.isActive, "Equb not active");
+        require(!theEqub.membersInfo[_winnerAddress].hasWon, "Already won");
 
-    function withdrawFees() public {}
-    function emergencyStop() public {}
+        theEqub.membersInfo[_winnerAddress].hasWon = true;
+        theEqub.winners.push(_winnerAddress);
+        //payable(_winnerAddress).transfer(theEqub.totalPool);
+        for (uint256 i; i < theEqub.members.length; i++) {
+            address m = theEqub.members[i];
+            theEqub.membersInfo[m].hasPaidCurrentRound = false;
+        }
+        (bool ok, ) = payable(_winnerAddress).call{value: theEqub.totalPool}(
+            ""
+        );
+        if (ok) {
+            theEqub.totalPool = 0;
+            theEqub.currentRound += 1;
+        }
+        require(ok, "Transfer failed");
+    }
+    function getCurrentWinner(uint256 _equbId) public view returns (address) {
+        equb storage theEqub = equbs[_equbId];
+        require(theEqub.winners.length > 0, "No winners yet");
+        return theEqub.winners[theEqub.winners.length - 1];
+    }
+    function getWinnersHistory(
+        uint256 _equbId
+    ) public view returns (address[] memory) {
+        equb storage theEqub = equbs[_equbId];
+        return theEqub.winners;
+    }
 }
