@@ -59,8 +59,8 @@ contract Equb {
             "please you must be the owner to end it"
         );
         require(
-            theEqub.members.length == theEqub.winners.length,
-            "sorry all users must win first"
+            theEqub.winners.length == theEqub.members.length,
+            "All current members must win"
         );
         theEqub.isActive = false;
     }
@@ -87,28 +87,27 @@ contract Equb {
         theEqub.membersInfo[msg.sender].hasWon = false;
         activeEqubCount[msg.sender] += 1;
     }
-    function leaveEqub(uint256 _equbId) public {
-        equb storage theEqub = equbs[_equbId];
-        require(theEqub.membersInfo[msg.sender].joinedAt > 0, "Not a member");
+    // function leaveEqub(uint256 _equbId) public {
+    //     equb storage theEqub = equbs[_equbId];
+    //     require(theEqub.membersInfo[msg.sender].joinedAt > 0, "Not a member");
 
-        for (uint256 i; i < theEqub.members.length; i++) {
-            if (theEqub.members[i] == msg.sender) {
-                theEqub.members[i] = theEqub.members[
-                    theEqub.members.length - 1
-                ];
-                theEqub.members.pop();
-                break;
-            }
-        }
-        delete theEqub.membersInfo[msg.sender];
-        activeEqubCount[msg.sender]--;
-    }
+    //     for (uint256 i; i < theEqub.members.length; i++) {
+    //         if (theEqub.members[i] == msg.sender) {
+    //             theEqub.members[i] = theEqub.members[
+    //                 theEqub.members.length - 1
+    //             ];
+    //             theEqub.members.pop();
+    //             break;
+    //         }
+    //     }
+    //     delete theEqub.membersInfo[msg.sender];
+    //     activeEqubCount[msg.sender]--;
+    // }
     function getMembers(
         uint256 _equbId
     ) public view returns (address[] memory) {
         return equbs[_equbId].members;
     }
-
     function contribute(uint256 _equbId) public payable {
         equb storage theEqub = equbs[_equbId];
 

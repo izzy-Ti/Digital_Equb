@@ -1,96 +1,336 @@
-import equb from "../models/equb";
+import Equb from "../models/equb.js";
+import { user } from "../models/user.js";
+import { EqubMember } from "../models/equbMember.js";
+import { Contribution } from "../models/contribution.js";
+import { Winner } from "../models/winner.js";
 
+// Create new equb (saves metadata, then user calls smart contract)
+export const createEqub = async (req, res) => {
+    const { 
+        userId, 
+        name, 
+        description,
+        contributionAmount, 
+        cycleDuration, 
+        maxMembers,
+        blockchainEqubId,
+        contractAddress,
+        creatorWallet
+    } = req.body;
 
-const createEqub = async (req, res) => {
+    if (!userId || !name || !contributionAmount || !cycleDuration || !maxMembers || !blockchainEqubId || !creatorWallet) {
+        return res.json({ success: false, message: 'Missing details' });
+    }
+
     try {
-        const { name, amount, duration, members, userId } = req.body
-        if (!name || !amount || !duration || !members) {
-            return res.json({ success: false, message: 'Missing details' })
+        // Verify user exists and wallet matches
+        const User = await user.findById(userId);
+        if (!User) {
+            return res.json({ success: false, message: 'User not found' });
         }
-        if (!userId) {
-            return res.json({ success: false, message: 'Please Login' })
+
+        if (User.walletAddress.toLowerCase() !== creatorWallet.toLowerCase()) {
+            return res.json({ success: false, message: 'Wallet address mismatch' });
         }
-        const newEqub = new equb({
+
+        // Check if blockchain equb ID already exists
+        const existingEqub = await Equb.findOne({ blockchainEqubId });
+        if (existingEqub) {
+            return res.json({ success: false, message: 'Equb already exists with this blockchain ID' });
+        }
+
+        // Create equb
+        const newEqub = new Equb({
             name,
-            amount,
-            duration,
-            members,
-            admin: userId
-        })
-        await newEqub.save()
-        return res.json({ success: true, equb: newEqub })
+            description: description || '',
+            contributionAmount,
+            cycleDuration,
+            maxMembers,
+            blockchainEqubId,
+            contractAddress: contractAddress || '',
+            creatorId: userId,
+            creatorWallet: creatorWallet.toLowerCase(),
+            status: 'pending'
+        });
+
+        await newEqub.save();
+
+        return res.json({ 
+            success: true, 
+            message: 'Equb created successfully',
+            equb: newEqub
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const EditEqub = async (req, res) => {
+};
+
+// Start equb (after smart contract startEqub is called)
+export const startEqub = async (req, res) => {
+    const { equbId, userId } = req.body;
+
+    if (!equbId || !userId) {
+        return res.json({ success: false, message: 'Missing details' });
+    }
+
     try {
-        const { name, amount, duration, members, equbId } = req.body
-        if (!name || !amount || !duration || !members) {
-            return res.json({ success: false, message: 'Missing details' })
-        }
-        const equb = await equb.findById(equbId)
+        const equb = await Equb.findById(equbId);
         if (!equb) {
-            return res.json({ success: false, message: 'Equb not found' })
+            return res.json({ success: false, message: 'Equb not found' });
         }
-        equb.name = name
-        equb.amount = amount
-        equb.duration = duration
-        equb.members = members
-        await equb.save()
-        return res.json({ success: true, equb: equb })
+
+        // Verify user is creator
+        if (equb.creatorId.toString() !== userId) {
+            return res.json({ success: false, message: 'Only creator can start equb' });
+        }
+
+        if (equb.status === 'active') {
+            return res.json({ success: false, message: 'Equb already active' });
+        }
+
+        equb.status = 'active';
+        equb.startTime = new Date();
+        await equb.save();
+
+        return res.json({ 
+            success: true, 
+            message: 'Equb started successfully',
+            equb
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const deleteEqub = async (req, res) => {
+};
+
+// Pause equb
+export const pauseEqub = async (req, res) => {
+    const { equbId, userId } = req.body;
+
+    if (!equbId || !userId) {
+        return res.json({ success: false, message: 'Missing details' });
+    }
+
     try {
-        const { equbId, userId } = req.body
-        if (!equbId) {
-            return res.json({ success: false, message: 'Missing details' })
-        }
-        const equb = await equb.findById(equbId)
+        const equb = await Equb.findById(equbId);
         if (!equb) {
-            return res.json({ success: false, message: 'Equb not found' })
+            return res.json({ success: false, message: 'Equb not found' });
         }
-        if (userId !== equb.admin) {
-            return res.json({ success: false, message: 'You are not authorized to delete this equb' })
+
+        if (equb.creatorId.toString() !== userId) {
+            return res.json({ success: false, message: 'Only creator can pause equb' });
         }
-        await equb.deleteOne()
-        return res.json({ success: true, message: 'Equb deleted successfully' })
+
+        equb.status = 'paused';
+        await equb.save();
+
+        return res.json({ 
+            success: true, 
+            message: 'Equb paused successfully',
+            equb
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const getEqub = async (req, res) => {
+};
+
+// End equb
+export const endEqub = async (req, res) => {
+    const { equbId, userId } = req.body;
+
+    if (!equbId || !userId) {
+        return res.json({ success: false, message: 'Missing details' });
+    }
+
     try {
-        const equb = await equb.find()
-        return res.json({ success: true, equb: equb })
+        const equb = await Equb.findById(equbId);
+        if (!equb) {
+            return res.json({ success: false, message: 'Equb not found' });
+        }
+
+        if (equb.creatorId.toString() !== userId) {
+            return res.json({ success: false, message: 'Only creator can end equb' });
+        }
+
+        equb.status = 'ended';
+        equb.endTime = new Date();
+        await equb.save();
+
+        // Update all active members' activeEqubCount
+        const members = await EqubMember.find({ equbId, isActive: true });
+        for (const member of members) {
+            const User = await user.findById(member.userId);
+            if (User && User.activeEqubCount > 0) {
+                User.activeEqubCount -= 1;
+                await User.save();
+            }
+            member.isActive = false;
+            await member.save();
+        }
+
+        return res.json({ 
+            success: true, 
+            message: 'Equb ended successfully',
+            equb
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const getEqubById = async (req, res) => {
+};
+
+// Get all equbs with filters
+export const getEqubs = async (req, res) => {
+    const { status, page = 1, limit = 10 } = req.query;
+
     try {
-        const equb = await equb.findById(req.params.id)
-        return res.json({ success: true, equb: equb })
+        const query = {};
+        if (status) query.status = status;
+
+        const equbs = await Equb.find(query)
+            .populate('creatorId', 'name email avatar')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const count = await Equb.countDocuments(query);
+
+        return res.json({
+            success: true,
+            equbs,
+            totalPages: Math.ceil(count / limit),
+            currentPage: page,
+            total: count
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const getEqubByUserId = async (req, res) => {
+};
+
+// Get equb by ID with full details
+export const getEqubById = async (req, res) => {
+    const { equbId } = req.params;
+
     try {
-        const equb = await equb.find({ admin: req.params.id })
-        return res.json({ success: true, equb: equb })
+        const equb = await Equb.findById(equbId)
+            .populate('creatorId', 'name email avatar walletAddress');
+
+        if (!equb) {
+            return res.json({ success: false, message: 'Equb not found' });
+        }
+
+        // Get member count
+        const memberCount = await EqubMember.countDocuments({ equbId, isActive: true });
+
+        // Get current round contributions
+        const currentRoundContributions = await Contribution.countDocuments({
+            equbId,
+            round: equb.currentRound,
+            status: 'confirmed'
+        });
+
+        // Get latest winner
+        const latestWinner = await Winner.findOne({ equbId })
+            .populate('userId', 'name avatar')
+            .sort({ round: -1 });
+
+        return res.json({
+            success: true,
+            equb: {
+                ...equb.toObject(),
+                memberCount,
+                currentRoundContributions,
+                latestWinner
+            }
+        });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
-const getEqubByMemberId = async (req, res) => {
+};
+
+// Get equbs created by user
+export const getEqubsByCreator = async (req, res) => {
+    const { userId } = req.params;
+
     try {
-        const equb = await equb.find({ members: req.params.id })
-        return res.json({ success: true, equb: equb })
+        const equbs = await Equb.find({ creatorId: userId })
+            .sort({ createdAt: -1 });
+
+        return res.json({ success: true, equbs });
+
     } catch (error) {
-        return res.json({ success: false, message: error.message })
+        return res.json({ success: false, message: error.message });
     }
-}
+};
+
+// Sync equb data from blockchain
+export const syncEqubFromBlockchain = async (req, res) => {
+    const { equbId, currentRound, totalPool, isActive } = req.body;
+
+    if (!equbId) {
+        return res.json({ success: false, message: 'Missing equb ID' });
+    }
+
+    try {
+        const equb = await Equb.findById(equbId);
+        if (!equb) {
+            return res.json({ success: false, message: 'Equb not found' });
+        }
+
+        if (currentRound !== undefined) equb.currentRound = currentRound;
+        if (totalPool !== undefined) equb.totalPool = totalPool;
+        if (isActive !== undefined) {
+            equb.status = isActive ? 'active' : 'paused';
+        }
+
+        await equb.save();
+
+        return res.json({ 
+            success: true, 
+            message: 'Equb synced successfully',
+            equb
+        });
+
+    } catch (error) {
+        return res.json({ success: false, message: error.message });
+    }
+};
+
+// Get equb statistics
+export const getEqubStats = async (req, res) => {
+    const { equbId } = req.params;
+
+    try {
+        const equb = await Equb.findById(equbId);
+        if (!equb) {
+            return res.json({ success: false, message: 'Equb not found' });
+        }
+
+        const totalMembers = await EqubMember.countDocuments({ equbId, isActive: true });
+        const totalContributions = await Contribution.countDocuments({ equbId, status: 'confirmed' });
+        const totalCollected = await Contribution.aggregate([
+            { $match: { equbId: equb._id, status: 'confirmed' } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const totalWinners = await Winner.countDocuments({ equbId });
+
+        return res.json({
+            success: true,
+            stats: {
+                totalMembers,
+                totalContributions,
+                totalCollected: totalCollected[0]?.total || 0,
+                totalWinners,
+                currentRound: equb.currentRound,
+                status: equb.status
+            }
+        });
+
+    } catch (error) {
+        return res.json({ success: false, message: error.message });
+    }
+};

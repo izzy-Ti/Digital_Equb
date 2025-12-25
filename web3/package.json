@@ -1,27 +1,17 @@
 {
-  "name": "web3",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "hardhat-javascript-starter",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npx thirdweb@latest detect",
+    "deploy": "npx thirdweb@latest deploy",
+    "publish": "npx thirdweb@latest publish"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
   "devDependencies": {
-    "@nomicfoundation/hardhat-ignition": "^3.0.6",
-    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.1",
-    "@types/node": "^22.19.3",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
-    "hardhat": "^3.1.0",
-    "typescript": "~5.8.0",
-    "viem": "^2.43.2"
+    "@matterlabs/hardhat-zksync-solc": "^1.1.14",
+    "@matterlabs/hardhat-zksync-verify": "^1.7.1",
+    "hardhat": "^2.19.1"
   },
   "dependencies": {
-    "@thirdweb-dev/contracts": "^3.15.0",
-    "@thirdweb-dev/sdk": "^4.0.99",
-    "ethers": "^5.8.0"
+    "@thirdweb-dev/contracts": "^3.8.0",
+    "zksync-ethers": "^5.7.0"
   }
 }

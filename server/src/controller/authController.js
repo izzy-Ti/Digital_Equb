@@ -5,7 +5,7 @@ import jwt from 'jsonwebtoken'
 import transporter from "../config/nodeMailer.js";
 
 export const register = async (req, res) => {
-  const { name, email, password, avater, role } = req.body
+  const { name, email, password, avatar, role } = req.body
   if (!name || !email || !password) {
     return res.json({ success: false, message: 'Missing Detail' })
   }
@@ -40,8 +40,8 @@ export const register = async (req, res) => {
     const mailOption = ({
       from: process.env.EMAIL,
       to: email,
-      subject: 'Welcome to E_learn',
-      text: `Welcome to E_learn.Hello ${name} Your account is created with email id: ${email}`
+      subject: 'Welcome to Digital Equb',
+      text: `Welcome to Digital Equb. Hello ${name}, Your account is created with email id: ${email}`
     })
     await transporter.sendMail(mailOption)
 
@@ -50,6 +50,7 @@ export const register = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const login = async (req, res) => {
   const { email, password } = req.body
   if (!email || !password) {
@@ -76,13 +77,16 @@ export const login = async (req, res) => {
       name: User.name,
       email: User.email,
       role: User.role,
-      IsAccVerified: User.IsAccVerified
+      IsAccVerified: User.IsAccVerified,
+      walletAddress: User.walletAddress,
+      isWalletLinked: User.isWalletLinked
     };
     res.json({ success: true, user: userResponse })
   } catch (error) {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const logout = async (req, res) => {
   try {
     res.clearCookie('token', {
@@ -95,6 +99,7 @@ export const logout = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const sendVerifyOTP = async (req, res) => {
   const { userId } = req.body
   try {
@@ -120,6 +125,7 @@ export const sendVerifyOTP = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const verifyOTP = async (req, res) => {
   const { otp, userId } = req.body
   if (!userId || !otp) {
@@ -145,6 +151,7 @@ export const verifyOTP = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const isAuth = async (req, res) => {
   try {
     return res.json({ success: true })
@@ -152,6 +159,7 @@ export const isAuth = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const sendResetOTP = async (req, res) => {
   const { email } = req.body
   if (!email) {
@@ -180,6 +188,7 @@ export const sendResetOTP = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const resetPassword = async (req, res) => {
   const { email, otp, newPassword } = req.body
   if (!email || !otp || !newPassword) {
@@ -206,6 +215,7 @@ export const resetPassword = async (req, res) => {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const getUserData = async (req, res) => {
   try {
     const { userId } = req.body
@@ -219,21 +229,88 @@ export const getUserData = async (req, res) => {
         name: User.name,
         email: User.email,
         IsAccVerified: User.IsAccVerified,
+        walletAddress: User.walletAddress,
+        isWalletLinked: User.isWalletLinked,
+        phoneNumber: User.phoneNumber,
+        avatar: User.avatar,
+        activeEqubCount: User.activeEqubCount,
+        totalWinnings: User.totalWinnings,
+        role: User.role
       }
     })
   } catch (error) {
     return res.json({ success: false, message: error.message })
   }
 }
+
 export const updateProfile = async (req, res) => {
-  const { userId, name, avater } = req.body;
+  const { userId, name, avatar, phoneNumber } = req.body;
   try {
     const updateData = {};
     if (name) updateData.name = name;
-    if (avater) updateData.avater = avater;
+    if (avatar) updateData.avatar = avatar;
+    if (phoneNumber) updateData.phoneNumber = phoneNumber;
     await user.findByIdAndUpdate(userId, updateData);
     return res.json({ success: true })
   } catch (error) {
     return res.json({ success: false, message: error.message })
+  }
+}
+
+// Link wallet address to user account
+export const linkWallet = async (req, res) => {
+  const { userId, walletAddress } = req.body;
+  
+  if (!userId || !walletAddress) {
+    return res.json({ success: false, message: 'Missing details' });
+  }
+
+  try {
+    // Check if wallet is already linked to another account
+    const existingWallet = await user.findOne({ walletAddress, _id: { $ne: userId } });
+    if (existingWallet) {
+      return res.json({ success: false, message: 'Wallet already linked to another account' });
+    }
+
+    const User = await user.findById(userId);
+    if (!User) {
+      return res.json({ success: false, message: 'User not found' });
+    }
+
+    User.walletAddress = walletAddress.toLowerCase();
+    User.isWalletLinked = true;
+    await User.save();
+
+    return res.json({ 
+      success: true, 
+      message: 'Wallet linked successfully',
+      walletAddress: User.walletAddress
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+}
+
+// Unlink wallet from user account
+export const unlinkWallet = async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.json({ success: false, message: 'Missing user ID' });
+  }
+
+  try {
+    const User = await user.findById(userId);
+    if (!User) {
+      return res.json({ success: false, message: 'User not found' });
+    }
+
+    User.walletAddress = '';
+    User.isWalletLinked = false;
+    await User.save();
+
+    return res.json({ success: true, message: 'Wallet unlinked successfully' });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
   }
 }

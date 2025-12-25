@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getUserData, isAuth, login, logout, register, resetPassword, sendResetOTP, sendVerifyOTP, updateProfile, verifyOTP } from '../controller/authController.js'
+import { getUserData, isAuth, login, logout, register, resetPassword, sendResetOTP, sendVerifyOTP, updateProfile, verifyOTP, linkWallet, unlinkWallet } from '../controller/authController.js'
 import userAuth from '../middleware/authMiddleware.js'
 
 const router = Router()
@@ -15,9 +15,11 @@ router.post('/reset-password', resetPassword)
 router.post('/get-user-data', userAuth, getUserData)
 router.post('/updateProfile', userAuth, updateProfile)
 
+// Wallet management
+router.post('/link-wallet', userAuth, linkWallet)
+router.post('/unlink-wallet', userAuth, unlinkWallet)
 
 export default router
-
 
 
 //POST http://localhost:4000/api/auth/logout
@@ -28,4 +30,7 @@ export default router
 //POST http://localhost:4000/api/auth/is-auth
 //POST http://localhost:4000/api/auth/send-reset-password
 //POST http://localhost:4000/api/auth/reset-password
-//GET http://localhost:4000/api/auth/get-user-data
+//POST http://localhost:4000/api/auth/get-user-data
+//POST http://localhost:4000/api/auth/updateProfile
+//POST http://localhost:4000/api/auth/link-wallet
+//POST http://localhost:4000/api/auth/unlink-wallet

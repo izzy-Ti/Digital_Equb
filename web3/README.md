@@ -1,57 +1,55 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+## Getting Started
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+Create a project using this example:
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
-
-## Project Overview
-
-This example project includes:
-
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
-
-## Usage
-
-### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+```bash
+npx thirdweb create --contract --template hardhat-javascript-starter
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+You can start editing the page by modifying `contracts/Contract.sol`.
 
-```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+To add functionality to your contracts, you can use the `@thirdweb-dev/contracts` package which provides base contracts and extensions to inherit. The package is already installed with this project. Head to our [Contracts Extensions Docs](https://portal.thirdweb.com/contractkit) to learn more.
+
+## Building the project
+
+After any changes to the contract, run:
+
+```bash
+npm run build
+# or
+yarn build
 ```
 
-### Make a deployment to Sepolia
+to compile your contracts. This will also detect the [Contracts Extensions Docs](https://portal.thirdweb.com/contractkit) detected on your contract.
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+## Deploying Contracts
 
-To run the deployment to a local chain:
+When you're ready to deploy your contracts, just run one of the following command to deploy you're contracts:
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```bash
+npm run deploy
+# or
+yarn deploy
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+> [!IMPORTANT]
+> This requires a secret key to make it work. Get your secret key [here](https://thirdweb.com/dashboard/settings/api-keys).
+> Pass your secret key as a value after `-k` flag.
+> ```bash
+> npm run deploy -- -k <your-secret-key>
+> # or
+> yarn deploy -k <your-secret-key>
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
+## Releasing Contracts
 
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+If you want to release a version of your contracts publicly, you can use one of the followings command:
 
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```bash
+npm run release
+# or
+yarn release
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+## Join our Discord!
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
-```
+For any questions, suggestions, join our discord at [https://discord.gg/thirdweb](https://discord.gg/thirdweb).
