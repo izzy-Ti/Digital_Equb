@@ -25,6 +25,8 @@ contract Equb {
     uint256 public count = 0;
     mapping(uint256 => equb) public equbs;
     mapping(address => uint256) public activeEqubCount;
+    event success(bool success);
+    event equbId(uint256 Id);
 
     function createEqub(
         string memory _name,
@@ -43,6 +45,9 @@ contract Equb {
         newEqub.isActive = false;
         newEqub.totalPool = 0;
         count++;
+
+        emit success(true);
+        emit equbId(count - 1);
     }
     function startEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
@@ -51,6 +56,7 @@ contract Equb {
             "please you must be the owner to start it"
         );
         theEqub.isActive = true;
+        emit success(true);
     }
     function endEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
@@ -63,6 +69,7 @@ contract Equb {
             "All current members must win"
         );
         theEqub.isActive = false;
+        emit success(true);
     }
     function pauseEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
@@ -71,6 +78,7 @@ contract Equb {
             "please you must be the owner to end it"
         );
         theEqub.isActive = false;
+        emit success(true);
     }
     function joinEqub(uint256 _equbId) public {
         equb storage theEqub = equbs[_equbId];
@@ -86,6 +94,7 @@ contract Equb {
         theEqub.membersInfo[msg.sender].hasPaidCurrentRound = false;
         theEqub.membersInfo[msg.sender].hasWon = false;
         activeEqubCount[msg.sender] += 1;
+        emit success(true);
     }
     // function leaveEqub(uint256 _equbId) public {
     //     equb storage theEqub = equbs[_equbId];
@@ -122,6 +131,7 @@ contract Equb {
 
         theEqub.membersInfo[msg.sender].hasPaidCurrentRound = true;
         theEqub.totalPool += msg.value;
+        emit success(true);
     }
     function getContributionStatus(
         uint256 _equbId
@@ -160,6 +170,7 @@ contract Equb {
             theEqub.currentRound += 1;
         }
         require(ok, "Transfer failed");
+        emit success(true);
     }
     function getCurrentWinner(uint256 _equbId) public view returns (address) {
         equb storage theEqub = equbs[_equbId];

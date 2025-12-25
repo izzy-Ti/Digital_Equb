@@ -3,7 +3,70 @@ import express from "express";
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import transporter from "../config/nodeMailer.js";
+import { OAuth2Client } from 'google-auth-library';
 
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleLogin = async (req, res) => {
+  const { credential } = req.body;
+  
+  if (!credential) {
+    return res.json({ success: false, message: 'Missing Google credential' });
+  }
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const { email, name, picture, sub } = ticket.getPayload();
+
+    let User = await user.findOne({ email });
+
+    if (!User) {
+      // Create new user for Google Sign-in
+      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
+      
+      User = new user({
+        name,
+        email,
+        password: hashedPassword,
+        avatar: picture,
+        IsAccVerified: true, // Google accounts are implicitly verified
+        role: 'USER',
+        googleId: sub // Optional: store google unique ID if schema supports it
+      });
+      await User.save();
+    }
+
+    const token = jwt.sign({ id: User._id }, process.env.HASH_KEY, { expiresIn: '7d' });
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    const userResponse = {
+      _id: User._id,
+      name: User.name,
+      email: User.email,
+      role: User.role,
+      IsAccVerified: User.IsAccVerified,
+      walletAddress: User.walletAddress,
+      isWalletLinked: User.isWalletLinked,
+      avatar: User.avatar
+    };
+
+    res.json({ success: true, user: userResponse });
+
+  } catch (error) {
+    console.error("Google Login Error:", error);
+    return res.json({ success: false, message: 'Google authentication failed' });
+  }
+}
 export const register = async (req, res) => {
   const { name, email, password, avatar, role } = req.body
   if (!name || !email || !password) {

@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { getUserData, isAuth, login, logout, register, resetPassword, sendResetOTP, sendVerifyOTP, updateProfile, verifyOTP, linkWallet, unlinkWallet } from '../controller/authController.js'
+import { getUserData, isAuth, login, logout, register, resetPassword, sendResetOTP, sendVerifyOTP, updateProfile, verifyOTP, linkWallet, unlinkWallet, googleLogin } from '../controller/authController.js'
 import userAuth from '../middleware/authMiddleware.js'
 
 const router = Router()
@@ -18,6 +18,9 @@ router.post('/updateProfile', userAuth, updateProfile)
 // Wallet management
 router.post('/link-wallet', userAuth, linkWallet)
 router.post('/unlink-wallet', userAuth, unlinkWallet)
+
+// Google Auth
+router.post('/google-login', googleLogin)
 
 export default router
 

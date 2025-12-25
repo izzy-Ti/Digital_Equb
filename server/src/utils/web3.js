@@ -1,24 +1,323 @@
 import { ethers } from 'ethers';
 
-// Contract ABI (you'll need to add the full ABI from your compiled contract)
+// Contract address (deployed) and full ABI
+const CONTRACT_ADDRESS = '0xd860F7eA20485655975b4b6dBD38C0d50ef6ee44';
+
 const EQUB_ABI = [
-    "function createEqub(string memory _name, uint256 _contributionAmount, uint256 _cycleDuration, uint256 _maxMember) public",
-    "function startEqub(uint256 _equbId) public",
-    "function endEqub(uint256 _equbId) public",
-    "function pauseEqub(uint256 _equbId) public",
-    "function joinEqub(uint256 _equbId) public",
-    "function getMembers(uint256 _equbId) public view returns (address[] memory)",
-    "function contribute(uint256 _equbId) public payable",
-    "function getContributionStatus(uint256 _equbId) public view returns (tuple(uint256 joinedAt, bool hasPaidCurrentRound, bool hasWon))",
-    "function getTotalPool(uint256 _equbId) public view returns (uint256)",
-    "function selectWinner(uint256 _equbId, address _winnerAddress) public",
-    "function getCurrentWinner(uint256 _equbId) public view returns (address)",
-    "function getWinnersHistory(uint256 _equbId) public view returns (address[] memory)",
-    "event EqubCreated(uint256 indexed equbId, address indexed owner, string name)",
-    "event EqubStarted(uint256 indexed equbId)",
-    "event MemberJoined(uint256 indexed equbId, address indexed member)",
-    "event ContributionMade(uint256 indexed equbId, address indexed member, uint256 amount, uint256 round)",
-    "event WinnerSelected(uint256 indexed equbId, address indexed winner, uint256 amount, uint256 round)"
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "name": "activeEqubCount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "contribute",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "count",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "_name",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_contributionAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_cycleDuration",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_maxMember",
+                "type": "uint256"
+            }
+        ],
+        "name": "createEqub",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "endEqub",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "equbs",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+            },
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "contributionAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "cycleDuration",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maxMembers",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "startTime",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "currentRound",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bool",
+                "name": "isActive",
+                "type": "bool"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalPool",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getContributionStatus",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "joinedAt",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "hasPaidCurrentRound",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "hasWon",
+                        "type": "bool"
+                    }
+                ],
+                "internalType": "struct Equb.member",
+                "name": "",
+                "type": "tuple"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getCurrentWinner",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getMembers",
+        "outputs": [
+            {
+                "internalType": "address[]",
+                "name": "",
+                "type": "address[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getTotalPool",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getWinnersHistory",
+        "outputs": [
+            {
+                "internalType": "address[]",
+                "name": "",
+                "type": "address[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "joinEqub",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "pauseEqub",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address",
+                "name": "_winnerAddress",
+                "type": "address"
+            }
+        ],
+        "name": "selectWinner",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "_equbId",
+                "type": "uint256"
+            }
+        ],
+        "name": "startEqub",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
 ];
 
 // Initialize provider (you can use Infura, Alchemy, or local node)
@@ -28,8 +327,9 @@ export const getProvider = () => {
 };
 
 // Get contract instance
-export const getEqubContract = (contractAddress, signerOrProvider) => {
-    return new ethers.Contract(contractAddress, EQUB_ABI, signerOrProvider);
+export const getEqubContract = (contractAddress = CONTRACT_ADDRESS, signerOrProvider) => {
+    const providerOrSigner = signerOrProvider || getProvider();
+    return new ethers.Contract(contractAddress, EQUB_ABI, providerOrSigner);
 };
 
 // Get signer from private key (for backend operations)
@@ -104,3 +404,6 @@ export default {
     getCurrentBlock,
     getGasPrice
 };
+
+// Default contract instance (uses RPC provider). Use `getEqubContract(CONTRACT_ADDRESS, signer)` for signer operations.
+export const EqubContract = getEqubContract(CONTRACT_ADDRESS, getProvider());

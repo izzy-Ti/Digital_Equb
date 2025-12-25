@@ -12,18 +12,11 @@ import userAuth from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-// All admin routes require authentication
-// You should add an admin-only middleware here
 
-// System statistics
 router.get('/stats', userAuth, getSystemStats);
 router.get('/activity', userAuth, getRecentActivity);
-
-// Equb management
 router.get('/equbs', userAuth, getAllEqubsAdmin);
 router.post('/equb/flag', userAuth, flagEqub);
-
-// User management
 router.get('/users', userAuth, getAllUsers);
 router.get('/user/:userId', userAuth, getUserDetails);
 router.post('/user/role', userAuth, updateUserRole);
