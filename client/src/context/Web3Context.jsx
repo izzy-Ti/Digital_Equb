@@ -1,9 +1,17 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import web3Service from '../services/web3Service';
 import toast from 'react-hot-toast';
 import { linkWallet } from '../services/authService';
 
 export const Web3Context = createContext();
+
+export const useWeb3 = () => {
+    const context = useContext(Web3Context);
+    if (!context) {
+        throw new Error('useWeb3 must be used within a Web3Provider');
+    }
+    return context;
+};
 
 export const Web3Provider = ({ children }) => {
   const [account, setAccount] = useState(null);
@@ -17,7 +25,7 @@ export const Web3Provider = ({ children }) => {
     const initWeb3 = async () => {
       if (web3Service.isMetaMaskInstalled()) {
         try {
-          const currentAccount = await web3Service.getCurrentAccount();
+          const currentAccount = await web3Service.initialize(); // Use initialize
           if (currentAccount) {
             setAccount(currentAccount);
             setIsActive(true);

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { User, Mail, Phone, Calendar, Shield, Wallet } from 'lucide-react';
+import { User, Mail, Phone, Calendar, Shield, Wallet, LogOut } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
-import { getUserData } from '../services/authService';
+import { getUserData, linkWallet } from '../services/authService';
+import { useWeb3 } from '../context/Web3Context';
+import toast from 'react-hot-toast';
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -27,6 +29,36 @@ const Profile = () => {
 
     fetchUserData();
   }, []);
+
+  const [isLinking, setIsLinking] = useState(false);
+  
+  // Use web3 context account if available
+  const { account } = useWeb3(); 
+  // We need to import linkWallet from authService
+  // make sure to update imports at the top
+  
+  const handleLinkWallet = async () => {
+      if (!account) {
+          toast.error("Please connect your wallet first (top right button)");
+          return;
+      }
+      setIsLinking(true);
+      try {
+          const res = await linkWallet(account);
+          if (res.success) {
+              toast.success("Wallet linked successfully!");
+              // Ideally update local user context here
+              window.location.reload(); // Simple reload to refresh user data
+          } else {
+              toast.error(res.message);
+          }
+      } catch (err) {
+          toast.error("Failed to link wallet");
+          console.error(err);
+      } finally {
+          setIsLinking(false);
+      }
+  };
 
   if (isLoading) {
     return (
@@ -106,10 +138,27 @@ const Profile = () => {
 
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-xs font-medium text-slate-500 uppercase">Wallet Address</label>
-                    <div className="flex items-center gap-3 text-slate-200 bg-white/5 p-3 rounded-lg border border-white/10 break-all">
-                      <Wallet size={18} className="text-primary-500 shrink-0" />
-                      <span className="font-mono text-sm">{user.walletAddress || 'No wallet linked'}</span>
-                    </div>
+                    <div className="flex justify-between items-center py-2 border-b border-white/10">
+                  <span className="text-gray-400">Wallet</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-mono text-sm">
+                        {user.walletAddress ? (
+                            `${user.walletAddress.substring(0, 6)}...${user.walletAddress.substring(user.walletAddress.length - 4)}`
+                        ) : (
+                            <span className="text-yellow-400">Not Linked</span>
+                        )}
+                    </span>
+                    {!user.walletAddress && (
+                        <button 
+                            onClick={handleLinkWallet}
+                            disabled={isLinking}
+                            className="text-xs bg-primary-500 hover:bg-primary-600 px-2 py-1 rounded text-white transition-colors"
+                        >
+                            {isLinking ? 'Linking...' : 'Link Wallet'}
+                        </button>
+                    )}
+                  </div>
+                </div>
                   </div>
                 </div>
               </CardContent>

@@ -18,26 +18,7 @@ const EQUB_ABI = [
   'event WinnerSelected(uint256 indexed equbId, address indexed winner, uint256 round)',
 ];
 
-// ... inside createEqub ...
-      // Extract equb ID from event
-      const event = receipt.logs.find(log => {
-        try {
-          const parsed = this.contract.interface.parseLog(log);
-          return parsed?.name === 'equbId';
-        } catch {
-          return false;
-        }
-      });
-      
-      if (event) {
-        const parsedEvent = this.contract.interface.parseLog(event);
-        return {
-          txHash: receipt.hash,
-          equbId: parsedEvent.args.Id.toString(),
-        };
-      }
-      
-      return { txHash: receipt.hash };
+
 
 /**
  * Web3 Service
@@ -62,37 +43,65 @@ class Web3Service {
   /**
    * Connect wallet
    */
+  /**
+   * Initialize Web3 Service
+   * Sets up provider and contract if wallet is connected
+   */
+  async initialize() {
+    if (!this.isMetaMaskInstalled()) return null;
+
+    this.provider = new ethers.BrowserProvider(window.ethereum);
+    
+    try {
+      const accounts = await this.provider.listAccounts();
+      if (accounts.length > 0) {
+         this.signer = await this.provider.getSigner();
+         this.account = accounts[0].address;
+         
+         // Check network
+         const network = await this.provider.getNetwork();
+         if (Number(network.chainId) !== SUPPORTED_CHAIN_ID) {
+            // We don't force switch on init to avoid popup spam, but we can't write
+            // Maybe just warn? For now, we assume user will switch if they try to interact
+         }
+         
+         // Initialize contract
+         this.contract = new ethers.Contract(
+            EQUB_CONTRACT_ADDRESS,
+            EQUB_ABI,
+            this.signer
+         );
+         
+         return this.account;
+      }
+    } catch (err) {
+      console.error("Auto-initialization failed", err);
+    }
+    return null;
+  }
+
+  /**
+   * Connect wallet
+   */
   async connectWallet() {
     if (!this.isMetaMaskInstalled()) {
       throw new Error('MetaMask is not installed');
     }
 
     try {
+      // Initialize provider if not already done
+      if (!this.provider) {
+          this.provider = new ethers.BrowserProvider(window.ethereum);
+      }
+
       // Request account access
-      const accounts = await window.ethereum.request({
+      await window.ethereum.request({
         method: 'eth_requestAccounts',
       });
 
-      this.account = accounts[0];
+      // Re-run full initialization to setup signer/contract
+      return await this.initialize(); 
 
-      // Create provider and signer
-      this.provider = new ethers.BrowserProvider(window.ethereum);
-      this.signer = await this.provider.getSigner();
-
-      // Check network
-      const network = await this.provider.getNetwork();
-      if (Number(network.chainId) !== SUPPORTED_CHAIN_ID) {
-        await this.switchNetwork();
-      }
-
-      // Initialize contract
-      this.contract = new ethers.Contract(
-        EQUB_CONTRACT_ADDRESS,
-        EQUB_ABI,
-        this.signer
-      );
-
-      return this.account;
     } catch (error) {
       console.error('Error connecting wallet:', error);
       throw error;
@@ -185,7 +194,8 @@ class Web3Service {
       // Extract equb ID from event
       const event = receipt.logs.find(log => {
         try {
-          return this.contract.interface.parseLog(log)?.name === 'EqubCreated';
+          const parsed = this.contract.interface.parseLog(log);
+          return parsed?.name === 'equbId';
         } catch {
           return false;
         }
@@ -195,7 +205,7 @@ class Web3Service {
         const parsedEvent = this.contract.interface.parseLog(event);
         return {
           txHash: receipt.hash,
-          equbId: parsedEvent.args.equbId.toString(),
+          equbId: parsedEvent.args.Id.toString(),
         };
       }
       
@@ -215,13 +225,72 @@ class Web3Service {
     }
 
     try {
+      const currentAddress = await this.getCurrentAccount();
+      if (!currentAddress) throw new Error("Wallet not connected");
+
+      // 1. Manual Validation: Check if already a member
+      let members;
+      try {
+          members = await this.contract.getMembers(equbId);
+      } catch (err) {
+          console.error("Validation Error (getMembers):", err);
+          throw new Error("Failed to verify membership. The contract may be inaccessible or the Equb ID is invalid.");
+      }
+
+      const isMember = members.some(m => m.toLowerCase() === currentAddress.toLowerCase());
+      if (isMember) {
+          throw new Error("You have already joined this Equb.");
+      }
+
+      // 2. Manual Validation: Check if full
+      let equbDetails;
+      try {
+           equbDetails = await this.contract.getEqub(equbId);
+      } catch (err) {
+           console.error("Validation Error (getEqub):", err);
+           throw new Error("Failed to fetch Equb details. Please check your network connection.");
+      }
+
+      const maxMembers = equbDetails.maxMembers; 
+      
+      if (members.length >= Number(maxMembers)) {
+          throw new Error("This Equb is full.");
+      }
+
+      // 3. Check contribution amount (optional but good)
+      const expectedAmount = equbDetails.contributionAmount;
+      const parsedContribution = ethers.parseEther(contributionAmount.toString());
+      if (parsedContribution !== expectedAmount) {
+          throw new Error(`Incorrect contribution amount. Expected ${ethers.formatEther(expectedAmount)} ETH.`);
+      }
+
+      // If checks pass, simulate and send
+      const value = parsedContribution;
+      
+      // Simulate transaction first to check for reverts (double check)
+      try {
+          await this.contract.joinEqub.staticCall(equbId, { value });
+      } catch (simulationError) {
+          console.error("Simulation failed:", simulationError);
+           
+           if (simulationError.reason) {
+              throw new Error(`Transaction Reverted: ${simulationError.reason}`);
+          }
+           // Fallback for custom errors or less structured errors
+           throw new Error("Transaction likely to fail. Contract may be paused or in invalid state.");
+      }
+
       const tx = await this.contract.joinEqub(equbId, {
-        value: ethers.parseEther(contributionAmount.toString()),
+        value: value,
       });
       const receipt = await tx.wait();
       return { txHash: receipt.hash };
     } catch (error) {
       console.error('Error joining equb:', error);
+      if (error.code === 'INSUFFICIENT_FUNDS' || error.message.includes('insufficient funds')) {
+          throw new Error('Insufficient funds. You do not have enough ETH to cover the contribution + gas.');
+      }
+      // Re-throw the clean error we created above, or the original if it wasn't caught yet
       throw error;
     }
   }

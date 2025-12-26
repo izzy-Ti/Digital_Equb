@@ -2,7 +2,7 @@
 export const API_BASE_URL = 'http://localhost:4000/api';
 
 // Smart Contract Addresses (update with deployed contract addresses)
-export const EQUB_CONTRACT_ADDRESS = '0xd860F7eA20485655975b4b6dBD38C0d50ef6ee44'; // REPLACE WITH DEPLOYED ADDRESS
+export const EQUB_CONTRACT_ADDRESS = '0xaCde40f48548217AC381c824621Ff8A25e5d2714'; // REPLACE WITH DEPLOYED ADDRESS
 
 // Blockchain Network Configuration
 export const SUPPORTED_CHAIN_ID = 11155111; // Sepolia testnet

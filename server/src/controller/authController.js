@@ -340,6 +340,15 @@ export const linkWallet = async (req, res) => {
       return res.json({ success: false, message: 'User not found' });
     }
 
+    // Enforce Immutable Wallet: If already linked, reject changes (unless it's the SAME address)
+    if (User.isWalletLinked && User.walletAddress) {
+        if (User.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+             return res.json({ success: false, message: 'Account is already linked to a different wallet. Contact support to change.' });
+        }
+        // If same address, just return success (idempotent)
+        return res.json({ success: true, message: 'Wallet already linked', walletAddress: User.walletAddress });
+    }
+
     User.walletAddress = walletAddress.toLowerCase();
     User.isWalletLinked = true;
     await User.save();

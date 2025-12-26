@@ -29,8 +29,12 @@ export const createEqub = async (req, res) => {
             return res.json({ success: false, message: 'User not found' });
         }
 
-        if (User.walletAddress.toLowerCase() !== creatorWallet.toLowerCase()) {
-            return res.json({ success: false, message: 'Wallet address mismatch' });
+        if (User.walletAddress && User.walletAddress.toLowerCase() !== creatorWallet.toLowerCase()) {
+            console.log(`Mismatch: DB(${User.walletAddress}) vs Req(${creatorWallet})`);
+            return res.json({ success: false, message: `Wallet address mismatch. Expected: ${User.walletAddress}, Got: ${creatorWallet}` });
+        }
+        if (!User.walletAddress) {
+             return res.json({ success: false, message: 'No wallet linked to this account. Please link your wallet first.' });
         }
 
         // Check if blockchain equb ID already exists

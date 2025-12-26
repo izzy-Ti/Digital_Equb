@@ -11,6 +11,7 @@ import Explore from './pages/Explore';
 import Profile from './pages/Profile';
 
 import CreateEqub from './pages/CreateEqub';
+import EqubDetail from './pages/EqubDetail';
 import useAuth from './hooks/useAuth';
 import LoadingSpinner from './components/ui/LoadingSpinner';
 
@@ -66,14 +67,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/equb/:id"
-        element={
-          <ProtectedRoute>
-            <div className="container mx-auto px-4 py-8 text-white">Equb Details Page (Coming Soon)</div>
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/equb/:id" element={<EqubDetail />} />
       
       {/* 404 */}
       <Route path="*" element={<Navigate to="/" replace />} />
