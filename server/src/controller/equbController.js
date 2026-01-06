@@ -4,7 +4,6 @@ import { EqubMember } from "../models/equbMember.js";
 import { Contribution } from "../models/contribution.js";
 import { Winner } from "../models/winner.js";
 
-// Create new equb (saves metadata, then user calls smart contract)
 export const createEqub = async (req, res) => {
     const { 
         userId, 
@@ -23,7 +22,6 @@ export const createEqub = async (req, res) => {
     }
 
     try {
-        // Verify user exists and wallet matches
         const User = await user.findById(userId);
         if (!User) {
             return res.json({ success: false, message: 'User not found' });
@@ -36,14 +34,10 @@ export const createEqub = async (req, res) => {
         if (!User.walletAddress) {
              return res.json({ success: false, message: 'No wallet linked to this account. Please link your wallet first.' });
         }
-
-        // Check if blockchain equb ID already exists
         const existingEqub = await Equb.findOne({ blockchainEqubId });
         if (existingEqub) {
             return res.json({ success: false, message: 'Equb already exists with this blockchain ID' });
         }
-
-        // Create equb
         const newEqub = new Equb({
             name,
             description: description || '',
@@ -69,8 +63,6 @@ export const createEqub = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Start equb (after smart contract startEqub is called)
 export const startEqub = async (req, res) => {
     const { equbId, userId } = req.body;
 
@@ -107,8 +99,6 @@ export const startEqub = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Pause equb
 export const pauseEqub = async (req, res) => {
     const { equbId, userId } = req.body;
 
@@ -139,8 +129,6 @@ export const pauseEqub = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// End equb
 export const endEqub = async (req, res) => {
     const { equbId, userId } = req.body;
 
@@ -184,8 +172,6 @@ export const endEqub = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Get all equbs with filters
 export const getEqubs = async (req, res) => {
     const { status, page = 1, limit = 10 } = req.query;
 
@@ -213,8 +199,6 @@ export const getEqubs = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Get equb by ID with full details
 export const getEqubById = async (req, res) => {
     const { equbId } = req.params;
 
@@ -255,8 +239,6 @@ export const getEqubById = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Get equbs created by user
 export const getEqubsByCreator = async (req, res) => {
     const { userId } = req.params;
 
@@ -270,8 +252,6 @@ export const getEqubsByCreator = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Sync equb data from blockchain
 export const syncEqubFromBlockchain = async (req, res) => {
     const { equbId, currentRound, totalPool, isActive } = req.body;
 
@@ -303,8 +283,6 @@ export const syncEqubFromBlockchain = async (req, res) => {
         return res.json({ success: false, message: error.message });
     }
 };
-
-// Get equb statistics
 export const getEqubStats = async (req, res) => {
     const { equbId } = req.params;
 
@@ -315,19 +293,16 @@ export const getEqubStats = async (req, res) => {
         }
 
         const totalMembers = await EqubMember.countDocuments({ equbId, isActive: true });
-        const totalContributions = await Contribution.countDocuments({ equbId, status: 'confirmed' });
-        const totalCollected = await Contribution.aggregate([
-            { $match: { equbId: equb._id, status: 'confirmed' } },
-            { $group: { _id: null, total: { $sum: '$amount' } } }
-        ]);
+        const contributions = await Contribution.find({ equbId, status: 'confirmed' });
+        const totalCollected = contributions.reduce((sum, c) => (BigInt(sum) + BigInt(c.amount)).toString(), '0');
         const totalWinners = await Winner.countDocuments({ equbId });
 
         return res.json({
             success: true,
             stats: {
                 totalMembers,
-                totalContributions,
-                totalCollected: totalCollected[0]?.total || 0,
+                totalContributions: contributions.length,
+                totalCollected,
                 totalWinners,
                 currentRound: equb.currentRound,
                 status: equb.status

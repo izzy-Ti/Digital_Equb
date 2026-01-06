@@ -12,20 +12,20 @@ export const createEqub = async (equbData) => {
 };
 
 // Start equb
-export const startEqub = async (equbId) => {
-  const response = await api.post('/equb/start', { equbId });
+export const startEqub = async (equbId, userId) => {
+  const response = await api.post('/equb/start', { equbId, userId });
   return response.data;
 };
 
 // Pause equb
-export const pauseEqub = async (equbId) => {
-  const response = await api.post('/equb/pause', { equbId });
+export const pauseEqub = async (equbId, userId) => {
+  const response = await api.post('/equb/pause', { equbId, userId });
   return response.data;
 };
 
 // End equb
-export const endEqub = async (equbId) => {
-  const response = await api.post('/equb/end', { equbId });
+export const endEqub = async (equbId, userId) => {
+  const response = await api.post('/equb/end', { equbId, userId });
   return response.data;
 };
 

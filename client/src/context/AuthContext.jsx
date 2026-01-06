@@ -15,24 +15,16 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       try {
         const authStatus = await isAuth();
-        if (authStatus && authStatus.isAuthenticated) {
-            // If authenticated, fetch user data
-            try {
-                const userData = await getUserData();
-                setUser(userData.user);
-                setIsAuthenticated(true);
-            } catch (err) {
-                console.error("Failed to fetch user data", err);
-                 // Fallback if getUserData fails but isAuth is true (shouldn't happen ideally)
-                 setIsAuthenticated(false);
-                 setUser(null);
-            }
+        if (authStatus && authStatus.isAuthenticated && authStatus.user) {
+            setUser(authStatus.user);
+            setIsAuthenticated(true);
         } else {
             setIsAuthenticated(false);
             setUser(null);
         }
       } catch (err) {
-        console.error("Auth check failed", err);
+        // If 401 or other error, ensure logged out state
+        console.error("Auth check failed:", err.message || err);
         setIsAuthenticated(false);
         setUser(null);
       } finally {

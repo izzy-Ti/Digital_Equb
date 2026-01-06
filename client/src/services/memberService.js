@@ -6,8 +6,8 @@ import api from '../config/api';
  */
 
 // Join equb
-export const joinEqub = async (equbId) => {
-  const response = await api.post('/member/join', { equbId });
+export const joinEqub = async (userId, equbId, walletAddress) => {
+  const response = await api.post('/member/join', { userId, equbId, walletAddress });
   return response.data;
 };
 

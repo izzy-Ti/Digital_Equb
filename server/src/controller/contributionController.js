@@ -70,7 +70,7 @@ export const updateContributionStatus = async (req, res) => {
         if (status === 'confirmed') {
             const equb = await Equb.findById(contribution.equbId);
             if (equb) {
-                equb.totalPool += contribution.amount;
+                equb.totalPool = (BigInt(equb.totalPool || '0') + BigInt(contribution.amount)).toString();
                 await equb.save();
             }
         }
@@ -93,7 +93,7 @@ export const getUserContributions = async (req, res) => {
 
         const totalContributed = contributions
             .filter(c => c.status === 'confirmed')
-            .reduce((sum, c) => sum + c.amount, 0);
+            .reduce((sum, c) => (BigInt(sum) + BigInt(c.amount)).toString(), '0');
 
         return res.json({ 
             success: true, 
@@ -121,7 +121,7 @@ export const getEqubContributions = async (req, res) => {
 
         const totalCollected = contributions
             .filter(c => c.status === 'confirmed')
-            .reduce((sum, c) => sum + c.amount, 0);
+            .reduce((sum, c) => (BigInt(sum) + BigInt(c.amount)).toString(), '0');
 
         return res.json({ 
             success: true, 
@@ -172,7 +172,7 @@ export const getRoundStats = async (req, res) => {
 
         const totalMembers = await EqubMember.countDocuments({ equbId, isActive: true });
         const contributedMembers = contributions.length;
-        const totalCollected = contributions.reduce((sum, c) => sum + c.amount, 0);
+        const totalCollected = contributions.reduce((sum, c) => (BigInt(sum) + BigInt(c.amount)).toString(), '0');
 
         return res.json({
             success: true,
@@ -182,7 +182,7 @@ export const getRoundStats = async (req, res) => {
                 contributedMembers,
                 pendingMembers: totalMembers - contributedMembers,
                 totalCollected,
-                expectedTotal: equb.contributionAmount * totalMembers
+                expectedTotal: (BigInt(equb.contributionAmount) * BigInt(totalMembers)).toString()
             }
         });
 

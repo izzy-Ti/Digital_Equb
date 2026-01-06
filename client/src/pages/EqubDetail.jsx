@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { ethers } from 'ethers';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Users, Clock, Target, Calendar, Shield, Wallet, Trophy } from 'lucide-react';
-import { getEqubById } from '../services/equbService';
+import { getEqubById, startEqub } from '../services/equbService';
+import { joinEqub, checkMembership } from '../services/memberService';
+import { recordContribution, getRoundStats } from '../services/contributionService';
+import { assignWinner, getEqubWinners } from '../services/winnerService';
 import { useWeb3 } from '../context/Web3Context';
 import useAuth from '../hooks/useAuth';
 import Card, { CardContent, CardHeader, CardTitle } from '../components/ui/Card';
@@ -13,10 +17,42 @@ const EqubDetail = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { web3, account, connectWallet } = useWeb3();
-  
+
   const [equb, setEqub] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isContributing, setIsContributing] = useState(false);
+  const [isSelectingWinner, setIsSelectingWinner] = useState(false);
+  const [isMember, setIsMember] = useState(false);
+  const [memberInfo, setMemberInfo] = useState(null);
+  const [roundStats, setRoundStats] = useState(null);
+  const [eligibleMembers, setEligibleMembers] = useState([]);
+
+  const safeFormatEther = (value) => {
+    if (!value) return '0';
+    const strValue = value.toString();
+    if (strValue.includes('.')) return strValue;
+    try {
+      return ethers.formatEther(strValue);
+    } catch (e) {
+      return strValue;
+    }
+  };
+
+  const calculateTotalPool = () => {
+    if (!equb?.contributionAmount || !equb?.maxMembers) return '0';
+    try {
+        const amount = equb.contributionAmount.toString();
+        if (amount.includes('.')) {
+            return (parseFloat(amount) * parseInt(equb.maxMembers)).toFixed(4);
+        }
+        return ethers.formatEther((BigInt(amount) * BigInt(equb.maxMembers)).toString());
+    } catch (e) {
+        console.error("Pool calculation error:", e);
+        return '0';
+    }
+  };
 
   useEffect(() => {
     const fetchEqubDetails = async () => {
@@ -24,6 +60,21 @@ const EqubDetail = () => {
         const data = await getEqubById(id);
         if (data.success) {
             setEqub(data.equb);
+            
+            // Fetch membership info if logged in
+            if (user) {
+                const memData = await checkMembership(id, user._id);
+                if (memData.success) {
+                    setIsMember(memData.isMember);
+                    setMemberInfo(memData.memberInfo);
+                }
+            }
+
+            // Fetch round stats
+            const statsData = await getRoundStats(id, data.equb.currentRound || 1);
+            if (statsData.success) {
+                setRoundStats(statsData.stats);
+            }
         } else {
             toast.error(data.message || "Failed to load Equb details");
         }
@@ -55,21 +106,102 @@ const EqubDetail = () => {
           const tx = await web3.joinEqub(equb.blockchainEqubId, equb.contributionAmount);
           
           if (tx && tx.txHash) {
-             // 2. Backend Sync (or Member Add) - Currently likely handled by webhooks or manual refresh
-             // For now we rely on the contract state. 
-             // Ideally we call equbService.joinEqub(id, txHash) if that endpoint exists
-             toast.success("Successfully joined on blockchain!", { id: 'join' });
-             window.location.reload();
+             toast.loading("Syncing with server...", { id: 'join' });
+             const response = await joinEqub(user._id, equb._id, account);
+             
+             if (response.success) {
+                toast.success("Successfully joined Equb!", { id: 'join' });
+                window.location.reload();
+             } else {
+                throw new Error(response.message || "Blockchain success, but server sync failed.");
+             }
           }
       } catch (error) {
           console.error("Join error:", error);
           const msg = error.reason || error.message || "Failed to join Equb";
-          // formatting for readability
           const finalMsg = msg.length > 50 && !msg.includes('Insufficient') ? "Transaction failed. Check console." : msg;
           toast.error(finalMsg, { id: 'join' });
       } finally {
           setIsJoining(false);
       }
+  };
+
+  const handleStart = async () => {
+      if (!account) {
+          connectWallet();
+          return;
+      }
+      
+      setIsStarting(true);
+      try {
+          toast.loading("Starting Equb...", { id: 'start' });
+          const tx = await web3.startEqub(equb.blockchainEqubId);
+          if (tx && tx.txHash) {
+              toast.loading("Syncing with server...", { id: 'start' });
+              const response = await startEqub(equb._id, user._id);
+              
+              if (response.success) {
+                  toast.success("Equb started successfully!", { id: 'start' });
+                  window.location.reload();
+              } else {
+                  throw new Error(response.message || "Blockchain success, but server sync failed.");
+              }
+          }
+      } catch (error) {
+          console.error("Start error:", error);
+          toast.error(error.reason || error.message || "Failed to start Equb", { id: 'start' });
+      } finally {
+          setIsStarting(false);
+      }
+  };
+
+  const handleContribute = async () => {
+      if (!user) {
+          toast.error("Please login to contribute");
+          return;
+      }
+      if (!account) {
+          connectWallet();
+          return;
+      }
+      
+      setIsContributing(true);
+      try {
+          toast.loading("Contributing on blockchain...", { id: 'contribute' });
+          const tx = await web3.contribute(equb.blockchainEqubId, equb.contributionAmount);
+          
+          if (tx && tx.txHash) {
+              toast.loading("Recording contribution...", { id: 'contribute' });
+              const response = await recordContribution({
+                  userId: user._id,
+                  equbId: equb._id,
+                  amount: equb.contributionAmount,
+                  round: equb.currentRound || 1,
+                  txHash: tx.txHash
+              });
+              
+              if (response.success) {
+                  toast.success("Contribution successful!", { id: 'contribute' });
+                  window.location.reload();
+              } else {
+                  throw new Error(response.message || "Blockchain success, but server sync failed.");
+              }
+          }
+      } catch (error) {
+          console.error("Contribution error:", error);
+          toast.error(error.reason || error.message || "Failed to make contribution", { id: 'contribute' });
+      } finally {
+          setIsContributing(false);
+      }
+  };
+
+  const handleSelectWinner = async () => {
+      if (!account) {
+          connectWallet();
+          return;
+      }
+      
+      toast.info("Winner selection is best performed from the Admin Dashboard for better control over eligible members.", { id: 'winner' });
   };
 
   if (isLoading) {
@@ -129,12 +261,16 @@ const EqubDetail = () => {
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                             <Wallet className="text-primary-500 mb-2" size={24} />
                             <div className="text-sm text-slate-400">Contribution</div>
-                            <div className="text-xl font-bold text-white">{equb.contributionAmount} ETH</div>
+                            <div className="text-xl font-bold text-white">
+                                {safeFormatEther(equb.contributionAmount)} ETH
+                            </div>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                             <Target className="text-secondary-500 mb-2" size={24} />
                             <div className="text-sm text-slate-400">Total Pool</div>
-                            <div className="text-xl font-bold text-white">{(equb.contributionAmount * equb.maxMembers).toFixed(4)} ETH</div>
+                            <div className="text-xl font-bold text-white">
+                                {calculateTotalPool()} ETH
+                            </div>
                         </div>
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5">
                             <Users className="text-blue-400 mb-2" size={24} />
@@ -167,26 +303,76 @@ const EqubDetail = () => {
                     <div className="space-y-4">
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-400">Cycle Amount</span>
-                            <span className="text-white font-mono">{equb.contributionAmount} ETH</span>
+                            <span className="text-white font-mono">{safeFormatEther(equb.contributionAmount)} ETH</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span className="text-slate-400">Duration</span>
                             <span className="text-white">{equb.cycleDuration} Days</span>
                         </div>
                         
-                        <div className="pt-4">
+                        <div className="pt-4 space-y-3">
                             {!user ? (
                                 <Link to="/login">
                                     <Button className="w-full">Login to Join</Button>
                                 </Link>
                             ) : (
-                                <Button 
-                                    className="w-full" 
-                                    onClick={handleJoin}
-                                    disabled={isJoining || equb.status === 'ended'}
-                                >
-                                    {isJoining ? 'Joining...' : 'Join Now'}
-                                </Button>
+                                <>
+                                    {/* Show Start button if user is owner and it's pending */}
+                                    {equb.creatorId?._id === user?._id && equb.status === 'pending' && (
+                                         <Button 
+                                            variant="secondary"
+                                            className="w-full mb-3" 
+                                            onClick={handleStart}
+                                            disabled={isStarting}
+                                        >
+                                            {isStarting ? 'Starting...' : '🚀 Start Equb'}
+                                        </Button>
+                                    )}
+
+                                    {/* Show Join button if not a member and status is active */}
+                                    {!isMember && equb.status === 'active' && (
+                                        <Button 
+                                            className="w-full" 
+                                            onClick={handleJoin}
+                                            disabled={isJoining || equb.memberCount >= equb.maxMembers}
+                                        >
+                                            {isJoining ? 'Joining...' : 'Join Now'}
+                                        </Button>
+                                    )}
+
+                                    {/* Show Contribute button if member and status is active */}
+                                    {isMember && equb.status === 'active' && (
+                                        <Button 
+                                            variant="primary"
+                                            className="w-full" 
+                                            onClick={handleContribute}
+                                            disabled={isContributing}
+                                        >
+                                            {isContributing ? 'Processing...' : '💰 Pay Contribution'}
+                                        </Button>
+                                    )}
+
+                                    {/* Show Waiting message if pending and not owner */}
+                                    {equb.status === 'pending' && equb.creatorId?._id !== user?._id && (
+                                        <div className="text-center p-3 bg-white/5 rounded-xl border border-white/10 text-slate-400 text-sm">
+                                            Waiting for creator to start...
+                                        </div>
+                                    )}
+
+                                    {/* Show Winner Selection if owner and status is active (Simplified) */}
+                                    {equb.creatorId?._id === user?._id && equb.status === 'active' && (
+                                        <div className="mt-4 pt-4 border-t border-white/10">
+                                            <p className="text-xs text-slate-500 mb-2 text-center">Admin Controls</p>
+                                            <Button 
+                                                variant="outline"
+                                                className="w-full border-secondary-500/50 text-secondary-400 hover:bg-secondary-500/10" 
+                                                onClick={handleSelectWinner}
+                                            >
+                                                🏆 Select Round Winner
+                                            </Button>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                         <p className="text-xs text-center text-slate-500 mt-2">

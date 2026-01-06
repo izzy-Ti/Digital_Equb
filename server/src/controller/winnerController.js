@@ -75,7 +75,7 @@ export const updateWinnerStatus = async (req, res) => {
         if (status === 'completed') {
             const User = await user.findById(winner.userId);
             if (User) {
-                User.totalWinnings += winner.payoutAmount;
+                User.totalWinnings = (BigInt(User.totalWinnings || '0') + BigInt(winner.payoutAmount)).toString();
                 await User.save();
             }
 
@@ -83,7 +83,7 @@ export const updateWinnerStatus = async (req, res) => {
             const equb = await Equb.findById(winner.equbId);
             if (equb) {
                 equb.currentRound = winner.round;
-                equb.totalPool = 0; // Reset pool after payout
+                equb.totalPool = '0'; // Reset pool after payout
                 await equb.save();
             }
         }
@@ -140,7 +140,7 @@ export const getUserWinnings = async (req, res) => {
             .populate('equbId', 'name contributionAmount')
             .sort({ selectedAt: -1 });
 
-        const totalWon = winnings.reduce((sum, w) => sum + w.payoutAmount, 0);
+        const totalWon = winnings.reduce((sum, w) => (BigInt(sum) + BigInt(w.payoutAmount)).toString(), '0');
 
         return res.json({ 
             success: true, 

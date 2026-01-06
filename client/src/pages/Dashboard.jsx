@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ethers } from 'ethers';
 import { Plus, LayoutGrid, Clock, Users, Wallet, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
@@ -30,6 +31,17 @@ const Dashboard = () => {
     customFetchEqubs();
   }, [user]);
 
+  const safeFormatEther = (value) => {
+    if (!value) return '0';
+    const strValue = value.toString();
+    if (strValue.includes('.')) return strValue;
+    try {
+      return ethers.formatEther(strValue);
+    } catch (e) {
+      return strValue;
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -59,7 +71,7 @@ const Dashboard = () => {
         <StatsCard 
             icon={<Wallet className="text-primary-400" />}
             title="Total Winnings"
-            value={`${user?.totalWinnings || 0} ETH`} // Use real data
+            value={`${safeFormatEther(user?.totalWinnings)} ETH`}
             label="Lifetime winnings"
         />
         <StatsCard 
@@ -102,7 +114,7 @@ const Dashboard = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {equbs.map((equb) => (
-              <EqubCard key={equb._id} equb={equb} />
+              <DashboardEqubCard key={equb._id} equb={equb} safeFormatEther={safeFormatEther} />
             ))}
           </div>
         )}
@@ -127,14 +139,14 @@ const StatsCard = ({ icon, title, value, label }) => (
     </Card>
 );
 
-const EqubCard = ({ equb }) => (
+const DashboardEqubCard = ({ equb, safeFormatEther }) => (
     <Card className="group cursor-pointer">
         <div className="flex justify-between items-start mb-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-secondary-500 flex items-center justify-center text-white font-bold text-xl">
-                {equb.name.charAt(0)}
+                {equb.name ? equb.name.charAt(0) : 'E'}
             </div>
             <div className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-lg border border-green-500/20 uppercase font-bold tracking-wider">
-                Active
+                {equb.status || 'Active'}
             </div>
         </div>
         
@@ -143,14 +155,14 @@ const EqubCard = ({ equb }) => (
         <div className="space-y-3 mb-6">
             <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Contribution</span>
-                <span className="text-white font-mono">{equb.contributionAmount} ETH</span>
+                <span className="text-white font-mono">{safeFormatEther(equb.contributionAmount)} ETH</span>
             </div>
             <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Members</span>
-                <span className="text-white">5 / {equb.maxMembers}</span>
+                <span className="text-white">{equb.memberCount || 0} / {equb.maxMembers || '-'}</span>
             </div>
             <div className="w-full bg-slate-800 rounded-full h-1.5">
-                <div className="bg-primary-500 h-1.5 rounded-full w-2/3"></div>
+                <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${Math.min(((equb.memberCount || 0) / (equb.maxMembers || 1)) * 100, 100)}%` }}></div>
             </div>
         </div>
 

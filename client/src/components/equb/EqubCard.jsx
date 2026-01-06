@@ -1,10 +1,24 @@
 import React from 'react';
+import { ethers } from 'ethers';
 import { Users, Clock, Target, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Card, { CardContent } from '../ui/Card';
 import Button from '../ui/Button';
 
 const EqubCard = ({ equb }) => {
+  const safeFormatEther = (value) => {
+    if (!value) return '0';
+    const strValue = value.toString();
+    // If it's already a decimal (contains a dot), assume it's already ETH
+    if (strValue.includes('.')) return strValue;
+    try {
+      return ethers.formatEther(strValue);
+    } catch (e) {
+      console.error("Format error for value:", value, e);
+      return strValue;
+    }
+  };
+
   return (
     <Card className="hover:border-primary-500/50 transition-colors group">
       <CardContent className="p-6">
@@ -22,7 +36,9 @@ const EqubCard = ({ equb }) => {
             </span>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-white">{equb.contributionAmount} ETH</p>
+            <p className="text-2xl font-bold text-white">
+              {safeFormatEther(equb.contributionAmount)} ETH
+            </p>
             <p className="text-xs text-slate-400 uppercase">Contribution</p>
           </div>
         </div>

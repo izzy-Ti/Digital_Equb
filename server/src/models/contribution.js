@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ethers } from "ethers";
 
 const ContributionSchema = new mongoose.Schema({
     equbId: { 
@@ -12,7 +13,7 @@ const ContributionSchema = new mongoose.Schema({
         required: true 
     },
     amount: { 
-        type: Number, 
+        type: String, 
         required: true 
     },
     round: { 
@@ -42,5 +43,20 @@ const ContributionSchema = new mongoose.Schema({
 ContributionSchema.index({ equbId: 1, round: 1 });
 ContributionSchema.index({ userId: 1 });
 ContributionSchema.index({ txHash: 1 });
+
+// Amount Normalization Middleware
+ContributionSchema.pre('save', function(next) {
+    if (this.isModified('amount') && this.amount) {
+        const val = this.amount.toString();
+        if (val.includes('.')) {
+            try {
+                this.amount = ethers.parseEther(val).toString();
+            } catch (e) {
+                console.error("Normalization error [amount]:", e);
+            }
+        }
+    }
+    next();
+});
 
 export const Contribution = mongoose.model('Contribution', ContributionSchema);

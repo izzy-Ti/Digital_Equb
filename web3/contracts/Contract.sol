@@ -80,7 +80,7 @@ contract Equb {
         theEqub.isActive = false;
         emit success(true);
     }
-    function joinEqub(uint256 _equbId) public {
+    function joinEqub(uint256 _equbId) public payable {
         equb storage theEqub = equbs[_equbId];
         require(theEqub.isActive, "Equb not active");
         require(activeEqubCount[msg.sender] < 3, "maximum equb reached");

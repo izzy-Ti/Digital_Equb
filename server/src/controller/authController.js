@@ -46,6 +46,7 @@ export const googleLogin = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -95,6 +96,7 @@ export const register = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000
     })
 
@@ -133,6 +135,7 @@ export const login = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000
     })
     const userResponse = {
@@ -155,7 +158,8 @@ export const logout = async (req, res) => {
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Use 'lax' consistency
+      path: '/',
     })
     res.json({ success: true, message: 'Logged out successfully' })
   } catch (error) {
@@ -217,9 +221,30 @@ export const verifyOTP = async (req, res) => {
 
 export const isAuth = async (req, res) => {
   try {
-    return res.json({ success: true })
+    const { userId } = req.body; // Injected by userAuth middleware
+    const User = await user.findById(userId);
+    if (!User) {
+        return res.status(401).json({ success: false, message: 'User not found' });
+    }
+
+    return res.json({ 
+        success: true, 
+        isAuthenticated: true,
+        user: {
+            _id: User._id,
+            name: User.name,
+            email: User.email,
+            role: User.role,
+            IsAccVerified: User.IsAccVerified,
+            walletAddress: User.walletAddress,
+            isWalletLinked: User.isWalletLinked,
+            avatar: User.avatar,
+            activeEqubCount: User.activeEqubCount,
+            totalWinnings: User.totalWinnings
+        }
+    })
   } catch (error) {
-    return res.json({ success: false, message: error.message })
+    return res.status(500).json({ success: false, message: error.message })
   }
 }
 
@@ -288,7 +313,8 @@ export const getUserData = async (req, res) => {
     }
     return res.json({
       success: true,
-      userData: {
+      user: {
+        _id: User._id,
         name: User.name,
         email: User.email,
         IsAccVerified: User.IsAccVerified,

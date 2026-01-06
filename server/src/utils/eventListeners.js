@@ -1,6 +1,7 @@
 import { getProvider, getEqubContract } from './web3.js';
 import { Contribution } from '../models/contribution.js';
 import { Winner } from '../models/winner.js';
+import { EqubMember } from '../models/equbMember.js';
 import Equb from '../models/equb.js';
 import { user } from '../models/user.js';
 
@@ -11,13 +12,12 @@ export const startEventListeners = (contractAddress) => {
 
     console.log('Starting blockchain event listeners...');
 
-    // Listen for EqubCreated events
-    contract.on('EqubCreated', async (equbId, owner, name, event) => {
-        console.log(`EqubCreated: ID=${equbId}, Owner=${owner}, Name=${name}`);
-        // Event is already handled by frontend, but you can add additional logic here
+    // Generic Success Event Listener (since contract emits success(true) for most actions)
+    contract.on('success', (status, event) => {
+        console.log(`Success event detected: ${status}, Tx: ${event.log.transactionHash}`);
     });
 
-    // Listen for EqubStarted events
+    // EqubStarted events
     contract.on('EqubStarted', async (equbId, event) => {
         console.log(`EqubStarted: ID=${equbId}`);
         try {
@@ -26,20 +26,46 @@ export const startEventListeners = (contractAddress) => {
                 equb.status = 'active';
                 equb.startTime = new Date();
                 await equb.save();
-                console.log(`Updated equb ${equbId} status to active`);
+                console.log(`Updated equb ${equbId} status to active via listener`);
             }
         } catch (error) {
             console.error('Error handling EqubStarted event:', error);
         }
     });
 
-    // Listen for MemberJoined events
+    // MemberJoined events
     contract.on('MemberJoined', async (equbId, member, event) => {
         console.log(`MemberJoined: EqubID=${equbId}, Member=${member}`);
-        // Membership is handled by frontend, but you can add verification here
+        try {
+            const equb = await Equb.findOne({ blockchainEqubId: equbId.toString() });
+            const User = await user.findOne({ walletAddress: member.toLowerCase() });
+
+            if (equb && User) {
+                const existingMember = await EqubMember.findOne({ equbId: equb._id, userId: User._id });
+                if (!existingMember) {
+                    const memberCount = await EqubMember.countDocuments({ equbId: equb._id });
+                    const newMember = new EqubMember({
+                        equbId: equb._id,
+                        userId: User._id,
+                        walletAddress: member.toLowerCase(),
+                        joinOrder: memberCount + 1
+                    });
+                    await newMember.save();
+                    
+                    equb.memberCount += 1;
+                    await equb.save();
+
+                    User.activeEqubCount += 1;
+                    await User.save();
+                    console.log(`Sync: Added member ${member} to equb ${equbId} via listener`);
+                }
+            }
+        } catch (error) {
+            console.error('Error handling MemberJoined event:', error);
+        }
     });
 
-    // Listen for ContributionMade events
+    // ContributionMade events
     contract.on('ContributionMade', async (equbId, member, amount, round, event) => {
         console.log(`ContributionMade: EqubID=${equbId}, Member=${member}, Amount=${amount}, Round=${round}`);
         
@@ -47,43 +73,32 @@ export const startEventListeners = (contractAddress) => {
             const txHash = event.log.transactionHash;
             const blockNumber = event.log.blockNumber;
 
-            // Find or update contribution
             let contribution = await Contribution.findOne({ txHash });
             
             if (contribution) {
                 contribution.status = 'confirmed';
                 contribution.blockNumber = blockNumber;
                 await contribution.save();
-                console.log(`Updated contribution status to confirmed: ${txHash}`);
             } else {
-                // Find user by wallet address
-                const User = await user.findOne({ 
-                    walletAddress: member.toLowerCase() 
-                });
+                const User = await user.findOne({ walletAddress: member.toLowerCase() });
+                const equb = await Equb.findOne({ blockchainEqubId: equbId.toString() });
 
-                if (User) {
-                    // Find equb
-                    const equb = await Equb.findOne({ 
-                        blockchainEqubId: equbId.toString() 
+                if (User && equb) {
+                    contribution = new Contribution({
+                        equbId: equb._id,
+                        userId: User._id,
+                        amount: amount.toString(),
+                        round: round.toString(),
+                        txHash,
+                        blockNumber,
+                        status: 'confirmed'
                     });
+                    await contribution.save();
 
-                    if (equb) {
-                        contribution = new Contribution({
-                            equbId: equb._id,
-                            userId: User._id,
-                            amount: amount.toString(),
-                            round: round.toString(),
-                            txHash,
-                            blockNumber,
-                            status: 'confirmed'
-                        });
-                        await contribution.save();
-                        console.log(`Created new contribution record: ${txHash}`);
-
-                        // Update equb total pool
-                        equb.totalPool = (BigInt(equb.totalPool) + BigInt(amount.toString())).toString();
-                        await equb.save();
-                    }
+                    // Update equb total pool using BigInt
+                    equb.totalPool = (BigInt(equb.totalPool || '0') + BigInt(amount.toString())).toString();
+                    await equb.save();
+                    console.log(`Sync: Recorded contribution from ${member} via listener`);
                 }
             }
         } catch (error) {
@@ -91,7 +106,7 @@ export const startEventListeners = (contractAddress) => {
         }
     });
 
-    // Listen for WinnerSelected events
+    // WinnerSelected events
     contract.on('WinnerSelected', async (equbId, winner, amount, round, event) => {
         console.log(`WinnerSelected: EqubID=${equbId}, Winner=${winner}, Amount=${amount}, Round=${round}`);
         
@@ -99,47 +114,34 @@ export const startEventListeners = (contractAddress) => {
             const txHash = event.log.transactionHash;
             const blockNumber = event.log.blockNumber;
 
-            // Find user by wallet address
-            const User = await user.findOne({ 
-                walletAddress: winner.toLowerCase() 
-            });
+            const User = await user.findOne({ walletAddress: winner.toLowerCase() });
+            const equb = await Equb.findOne({ blockchainEqubId: equbId.toString() });
 
-            if (User) {
-                // Find equb
-                const equb = await Equb.findOne({ 
-                    blockchainEqubId: equbId.toString() 
-                });
+            if (User && equb) {
+                const existingWinner = await Winner.findOne({ equbId: equb._id, round: round.toString() });
 
-                if (equb) {
-                    // Check if winner already recorded
-                    const existingWinner = await Winner.findOne({ 
-                        equbId: equb._id, 
-                        round: round.toString() 
+                if (!existingWinner) {
+                    const winnerRecord = new Winner({
+                        equbId: equb._id,
+                        userId: User._id,
+                        walletAddress: winner.toLowerCase(),
+                        round: round.toString(),
+                        payoutAmount: amount.toString(),
+                        payoutTxHash: txHash,
+                        blockNumber,
+                        payoutStatus: 'completed'
                     });
+                    await winnerRecord.save();
 
-                    if (!existingWinner) {
-                        const winnerRecord = new Winner({
-                            equbId: equb._id,
-                            userId: User._id,
-                            walletAddress: winner.toLowerCase(),
-                            round: round.toString(),
-                            payoutAmount: amount.toString(),
-                            payoutTxHash: txHash,
-                            blockNumber,
-                            payoutStatus: 'completed'
-                        });
-                        await winnerRecord.save();
-                        console.log(`Created winner record for round ${round}`);
+                    // Update user's total winnings using BigInt
+                    User.totalWinnings = (BigInt(User.totalWinnings || '0') + BigInt(amount.toString())).toString();
+                    await User.save();
 
-                        // Update user's total winnings
-                        User.totalWinnings = (BigInt(User.totalWinnings) + BigInt(amount.toString())).toString();
-                        await User.save();
-
-                        // Update equb
-                        equb.currentRound = round.toString();
-                        equb.totalPool = '0';
-                        await equb.save();
-                    }
+                    // Update equb
+                    equb.currentRound = round.toString();
+                    equb.totalPool = '0';
+                    await equb.save();
+                    console.log(`Sync: Recorded winner ${winner} for round ${round} via listener`);
                 }
             }
         } catch (error) {

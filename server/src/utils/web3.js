@@ -322,14 +322,13 @@ const EQUB_ABI = [
 
 // Initialize provider (you can use Infura, Alchemy, or local node)
 export const getProvider = () => {
-    const rpcUrl = process.env.RPC_URL || 'http://localhost:8545';
+    const rpcUrl = process.env.RPC_URL;
     return new ethers.JsonRpcProvider(rpcUrl);
 };
 
 // Get contract instance
-export const getEqubContract = (contractAddress = CONTRACT_ADDRESS, signerOrProvider) => {
-    const providerOrSigner = signerOrProvider || getProvider();
-    return new ethers.Contract(contractAddress, EQUB_ABI, providerOrSigner);
+export const getEqubContract = (address = CONTRACT_ADDRESS, providerOrSigner = getProvider()) => {
+    return new ethers.Contract(address, EQUB_ABI, providerOrSigner);
 };
 
 // Get signer from private key (for backend operations)

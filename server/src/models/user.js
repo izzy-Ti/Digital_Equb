@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { ethers } from "ethers";
 
 
 const UserSchema = new mongoose.Schema({
@@ -25,10 +26,24 @@ const UserSchema = new mongoose.Schema({
     
     // Equb Activity Tracking
     activeEqubCount: { type: Number, default: 0, min: 0, max: 3 }, // Max 3 active equbs per user
-    totalWinnings: { type: Number, default: 0 }, // Total amount won across all equbs
+    totalWinnings: { type: String, default: '0' }, // Total amount won across all equbs (Wei as String)
     
     // User Role
     role: { type: String, required: true, enum: ['USER', 'ADMIN'], default: 'USER' }
 }, { timestamps: true })
+// Amount Normalization Middleware
+UserSchema.pre('save', function(next) {
+    if (this.isModified('totalWinnings') && this.totalWinnings) {
+        const val = this.totalWinnings.toString();
+        if (val.includes('.')) {
+            try {
+                this.totalWinnings = ethers.parseEther(val).toString();
+            } catch (e) {
+                console.error("Normalization error [totalWinnings]:", e);
+            }
+        }
+    }
+    next();
+});
 
 export const user = mongoose.model('user', UserSchema)

@@ -5,9 +5,15 @@ import { EQUB_CONTRACT_ADDRESS, SUPPORTED_CHAIN_ID } from '../constants';
 const EQUB_ABI = [
   'function createEqub(string name, uint256 contributionAmount, uint256 cycleDuration, uint256 maxMembers) external returns (uint256)',
   'function joinEqub(uint256 equbId) external payable',
+  'function startEqub(uint256 equbId) external',
   'function contribute(uint256 equbId) external payable',
-  'function selectWinner(uint256 equbId) external',
-  'function getEqub(uint256 equbId) external view returns (tuple(uint256 id, address owner, string name, uint256 contributionAmount, uint256 cycleDuration, uint256 maxMembers, uint256 startTime, uint256 currentRound, bool isActive, uint256 totalPool))',
+  'function selectWinner(uint256 equbId, address winnerAddress) external',
+  'function equbs(uint256) view returns (address owner, string name, uint256 contributionAmount, uint256 cycleDuration, uint256 maxMembers, uint256 startTime, uint256 currentRound, bool isActive, address[] members, address[] winners, uint256 totalPool)', 
+  // NOTE: The default getter for struct with arrays might NOT return the arrays. 
+  // Based on standard Solidity getter generation for mapping(uint => Struct):
+  // It returns (owner, name, contributionAmount, cycleDuration, maxMembers, startTime, currentRound, isActive, totalPool) 
+  // It SKIPS dynamic arrays (members, winners) and mappings inside the struct.
+  // We need to use 'function equbs(uint256) view returns (address owner, string name, uint256 contributionAmount, uint256 cycleDuration, uint256 maxMembers, uint256 startTime, uint256 currentRound, bool isActive, uint256 totalPool)'
   'function getMembers(uint256 equbId) external view returns (address[])',
   'function getCurrentWinner(uint256 equbId) external view returns (address)',
   'event equbId(uint256 Id)',
@@ -217,11 +223,35 @@ class Web3Service {
   }
 
   /**
+   * Start equb on blockchain (Owner only)
+   */
+  async startEqub(equbId) {
+    if (!this.contract) {
+        await this.initialize();
+    }
+    if (!this.contract) throw new Error('Contract not initialized');
+
+    try {
+      const tx = await this.contract.startEqub(equbId);
+      const receipt = await tx.wait();
+      return { txHash: receipt.hash };
+    } catch (error) {
+      console.error('Error starting equb:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Join equb on blockchain
    */
   async joinEqub(equbId, contributionAmount) {
+    // Lazy init: If contract is missing but we have ethereum, try to restore
+    if (!this.contract && this.isMetaMaskInstalled()) {
+        await this.initialize();
+    }
+
     if (!this.contract) {
-      throw new Error('Contract not initialized');
+      throw new Error('Contract not initialized. Please refresh the page or reconnect your wallet.');
     }
 
     try {
@@ -245,9 +275,11 @@ class Web3Service {
       // 2. Manual Validation: Check if full
       let equbDetails;
       try {
-           equbDetails = await this.contract.getEqub(equbId);
+           // Use the mapping getter 'equbs' which returns the struct fields (excluding arrays/mappings)
+           // Returns: [owner, name, contributionAmount, cycleDuration, maxMembers, startTime, currentRound, isActive, totalPool]
+           equbDetails = await this.contract.equbs(equbId);
       } catch (err) {
-           console.error("Validation Error (getEqub):", err);
+           console.error("Validation Error (equbs mapping):", err);
            throw new Error("Failed to fetch Equb details. Please check your network connection.");
       }
 
@@ -272,12 +304,24 @@ class Web3Service {
           await this.contract.joinEqub.staticCall(equbId, { value });
       } catch (simulationError) {
           console.error("Simulation failed:", simulationError);
-           
-           if (simulationError.reason) {
+          
+          // Try to decode revert reason
+          if (simulationError.data) {
+              try {
+                  const reason = this.contract.interface.parseError(simulationError.data);
+                  if (reason) throw new Error(`Contract Error: ${reason.name}`);
+              } catch (e) {}
+          }
+
+          if (simulationError.reason) {
               throw new Error(`Transaction Reverted: ${simulationError.reason}`);
           }
-           // Fallback for custom errors or less structured errors
-           throw new Error("Transaction likely to fail. Contract may be paused or in invalid state.");
+          
+          if (simulationError.message.includes("method not found") || simulationError.message.includes("payable")) {
+              throw new Error("The contract's joinEqub function is not accepting payments. Please ensure the contract is updated and payable.");
+          }
+
+          throw new Error("Transaction likely to fail. The Equb might not be active, you might already be a member, or the join limit was reached.");
       }
 
       const tx = await this.contract.joinEqub(equbId, {
@@ -318,13 +362,13 @@ class Web3Service {
   /**
    * Select winner
    */
-  async selectWinner(equbId) {
+  async selectWinner(equbId, winnerAddress) {
     if (!this.contract) {
       throw new Error('Contract not initialized');
     }
 
     try {
-      const tx = await this.contract.selectWinner(equbId);
+      const tx = await this.contract.selectWinner(equbId, winnerAddress);
       const receipt = await tx.wait();
       return { txHash: receipt.hash };
     } catch (error) {
@@ -342,9 +386,18 @@ class Web3Service {
     }
 
     try {
-      const equb = await this.contract.getEqub(equbId);
+      // Use the mapping getter
+      // Result: [owner, name, contributionAmount, cycleDuration, maxMembers, startTime, currentRound, isActive, totalPool]
+      // Ethers returns a Result object that allows access by position and name (if provided in ABI)
+      // Since we used a simplified string ABI above for 'equbs', we can rely on property access if we name them in the ABI string in the replacement above.
+      
+      // Let's ensure the ABI replacement above INCLUDES the names. 
+      // 'function equbs(uint256) view returns (address owner, string name, uint256 contributionAmount, uint256 cycleDuration, uint256 maxMembers, uint256 startTime, uint256 currentRound, bool isActive, uint256 totalPool)'
+      
+      const equb = await this.contract.equbs(equbId);
+      
       return {
-        id: equb.id.toString(),
+        id: equbId.toString(), // ID is the key, not in the value
         owner: equb.owner,
         name: equb.name,
         contributionAmount: ethers.formatEther(equb.contributionAmount),

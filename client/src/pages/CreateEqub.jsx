@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ethers } from 'ethers';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Wallet } from 'lucide-react';
 import Button from '../components/ui/Button';
@@ -53,16 +54,17 @@ const CreateEqub = () => {
         toast.loading("Saving Equb details...", { id: 'create-equb' });
 
         // 2. Save to Backend
+        const contributionInWei = ethers.parseEther(formData.contributionAmount.toString()).toString();
+        
         const backendData = {
             userId: user._id,
             name: formData.name,
             description: formData.description,
-            contributionAmount: formData.contributionAmount,
+            contributionAmount: contributionInWei,
             cycleDuration: formData.cycleDuration,
             maxMembers: formData.maxMembers,
             blockchainEqubId: txResult.equbId,
             creatorWallet: account,
-            // contractAddress: EQUB_CONTRACT_ADDRESS // Handled by backend or env if needed
         };
 
         const response = await createEqub(backendData);
